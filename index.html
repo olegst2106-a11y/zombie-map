@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Планшет рассказчика</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#1c2428;--panel:#243036;--ink:#e8e3d4;--dim:#9aa6a3;--line:#3a4a50;--red:#c2402f;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,sans-serif}
+#bar{display:flex;gap:8px;padding:8px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:var(--panel)}
+input,textarea,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px}
+#q{flex:1;min-width:0}
+button.main{background:var(--red);border-color:var(--red);font-weight:600}
+#map{flex:1 1 45%;min-height:220px}
+#panel{flex:1 1 40%;overflow:auto;padding:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:2px solid var(--red)}
+#out{white-space:pre-wrap;user-select:text;font:14px/1.45 ui-monospace,Menlo,monospace;margin:0 0 10px}
+#note{width:100%;min-height:56px;margin-bottom:8px;resize:vertical}
+#copy{width:100%;position:sticky;bottom:0}
+.hint{color:var(--dim)}
+select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
+#tabs{display:flex;gap:6px;margin-bottom:8px}
+#tabs button.on{background:var(--red);border-color:var(--red)}
+.hero{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:10px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+.g input,.g select{width:100%;min-width:0;padding:8px}
+.hero textarea,.act{width:100%;min-height:60px;margin-bottom:6px}
+label{display:block;color:var(--dim);font-size:12px}
+.w{font-size:14px;margin:0 0 4px}
+.bad{color:#ff8a70}
+#clock{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+#clock button{padding:8px}
+#rl{font:14px ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:0 0 8px}
+</style>
+</head>
+<body>
+<div id="bar">
+  <input id="q" placeholder="Найти место: город, улица, адрес" enterkeyhint="search">
+  <button id="go">Найти</button>
+</div>
+<div id="map"></div>
+<div id="panel">
+  <div id="tabs"><button id="t0" class="on">Сводка</button><button id="t1">Герои</button></div>
+  <section id="p0">
+    <pre id="out" class="hint">Нажми на карту, чтобы поставить героев. Сводка появится здесь.</pre>
+    <div class="g"><select id="df"><option value="80">Лёгкое</option><option value="55" selected>Обычное</option><option value="30">Трудное</option><option value="10">Почти невозможное</option></select><input id="md" type="number" value="0" step="5" aria-label="Сдвиг шанса, пункты"></div>
+    <button id="dice" style="width:100%;margin-bottom:8px">Бросок d100</button>
+    <pre id="rl" class="hint">Броска ещё не было.</pre>
+    <textarea id="a0" class="act" placeholder="Действие игрока 1"></textarea>
+    <textarea id="a1" class="act" placeholder="Действие игрока 2"></textarea>
+  </section>
+  <section id="p1" hidden>
+    <div id="clock"><b id="clk"></b><button data-m="10">+10 мин</button><button data-m="60">+1 ч</button><button data-m="360">+6 ч</button><input id="tp" placeholder="Погода, t°" style="width:130px"></div>
+    <div id="hs"></div>
+  </section>
+  <button id="copy" class="main">Копировать для рассказчика</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const R=300, DIRS=['С','СВ','В','ЮВ','Ю','ЮЗ','З','СЗ'];
+const EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const SH={supermarket:'супермаркет',convenience:'магазин у дома',mall:'ТЦ',hardware:'хозтовары',doityourself:'стройматериалы',alcohol:'алкоголь',clothes:'одежда',car_repair:'автосервис',kiosk:'киоск'};
+const $=id=>document.getElementById(id);
+let mark,ring,report='';
+
+const map=L.map('map').setView([53.11,50.22],11);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+map.on('click',e=>scan(e.latlng.lat,e.latlng.lng));
+
+function dist(a,b,c,d){const r=Math.PI/180,x=(c-a)*r,y=(d-b)*r*Math.cos((a+c)/2*r);return Math.hypot(x,y)*6371000}
+function dir(a,b,c,d){const r=Math.PI/180,t=Math.atan2((d-b)*r*Math.cos(a*r),(c-a)*r)*180/Math.PI;return DIRS[Math.round(((t+360)%360)/45)%8]}
+
+function cls(t){
+  const a=t.amenity;
+  if(a==='pharmacy')return 'Аптеки';
+  if(/^(hospital|clinic|doctors)$/.test(a))return 'Медицина';
+  if(/^(police|fire_station)$/.test(a))return 'Полиция и пожарные';
+  if(a==='fuel')return 'Заправки';
+  if(/^(school|kindergarten)$/.test(a))return 'Школы и сады';
+  if(/^(restaurant|cafe|fast_food)$/.test(a))return 'Еда';
+  if(t.shop)return 'Магазины';
+  if(t.man_made)return 'Вода и ёмкости';
+  if(t.building==='warehouse'||t.industrial)return 'Склады и промзона';
+  if(parseInt(t['building:levels'])>=9)return 'Высотки 9+ эт.';
+  return null;
+}
+function label(t){
+  if(t.name)return t.name+(t.shop?' ('+(SH[t.shop]||t.shop)+')':'');
+  if(t.shop)return SH[t.shop]||t.shop;
+  if(t['building:levels'])return 'дом, '+t['building:levels']+' эт.';
+  return 'без названия';
+}
+
+async function geo(lat,lng){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&accept-language=ru&lat=${lat}&lon=${lng}`);
+    return (await r.json()).display_name||'';
+  }catch(e){return ''}
+}
+async function over(lat,lng){
+  const a=`(around:${R},${lat},${lng})`;
+  const q=`[out:json][timeout:25];(nwr${a}["amenity"~"^(pharmacy|hospital|clinic|doctors|police|fire_station|fuel|school|kindergarten|restaurant|cafe|fast_food)$"];nwr${a}["shop"];nwr${a}["man_made"~"^(water_tower|storage_tank)$"];nwr${a}["building"="warehouse"];nwr${a}["industrial"];nwr${a}["building:levels"~"^(9|[12][0-9])$"];way${a}["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"];);out center tags;`;
+  for(const u of EP){
+    try{
+      const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});
+      if(r.ok)return (await r.json()).elements;
+    }catch(e){}
+  }
+  throw new Error('overpass');
+}
+
+function build(lat,lng,addr,els){
+  const g={},roads={},bridges=new Set(),ln=[];
+  for(const e of els){
+    const t=e.tags||{};
+    if(t.highway){const n=t.name||t.ref;if(n){roads[n]=1;if(t.bridge)bridges.add(n)}continue}
+    const k=cls(t);if(!k)continue;
+    const la=e.lat??(e.center&&e.center.lat),lo=e.lon??(e.center&&e.center.lon);
+    if(la==null)continue;
+    (g[k]=g[k]||[]).push({n:label(t),d:dist(lat,lng,la,lo),w:dir(lat,lng,la,lo)});
+  }
+  ln.push(`Точка: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  if(addr)ln.push('Адрес: '+addr);
+  ln.push(`Обзор ${R} м, «рядом» значит до 100 м.`);
+  for(const [k,v] of Object.entries(g)){
+    v.sort((a,b)=>a.d-b.d);
+    ln.push('',`${k} (${v.length}):`);
+    v.slice(0,4).forEach(x=>ln.push(`- ${x.n}: ${x.w}, ${Math.round(x.d)} м${x.d<=100?' (рядом)':''}`));
+  }
+  const r=Object.keys(roads);
+  if(r.length)ln.push('','Дороги: '+r.slice(0,8).join(', '));
+  if(bridges.size)ln.push('Мосты: '+[...bridges].join(', '));
+  if(!Object.keys(g).length&&!r.length)ln.push('','Поблизости ничего не отмечено: пустырь, поле или лес.');
+  return ln.join('\n');
+}
+
+function show(t,dim){const o=$('out');o.textContent=t;o.className=dim?'hint':''}
+
+async function scan(lat,lng){
+  const p=[lat,lng];
+  if(mark){mark.setLatLng(p);ring.setLatLng(p)}
+  else{
+    mark=L.circleMarker(p,{radius:9,color:'#fff',weight:2,fillColor:'#c2402f',fillOpacity:1}).addTo(map);
+    ring=L.circle(p,{radius:R,color:'#c2402f',weight:1,dashArray:'4 4',fill:false}).addTo(map);
+  }
+  report='';show('Сканирую местность…',true);
+  try{
+    const [addr,els]=await Promise.all([geo(lat,lng),over(lat,lng)]);
+    report=build(lat,lng,addr,els);show(report);
+  }catch(e){
+    show('Сервер карт не ответил. Нажми на карту ещё раз через несколько секунд.',true);
+  }
+}
+
+async function find(){
+  const q=$('q').value.trim();if(!q)return;
+  try{
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru&q='+encodeURIComponent(q));
+    const j=await r.json();
+    if(!j.length){show('Место не найдено. Попробуй написать иначе.',true);return}
+    const la=+j[0].lat,lo=+j[0].lon;
+    map.setView([la,lo],16);scan(la,lo);
+  }catch(e){show('Поиск не ответил. Попробуй ещё раз.',true)}
+}
+$('go').onclick=find;
+$('q').onkeydown=e=>{if(e.key==='Enter')find()};
+
+const LK='zmb2',RATE={h:.45,t:.6,f:.6};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dflt=()=>({day:1,min:480,tp:'',roll:'',h:[0,1].map(()=>({n:'',kg:70,cap:'',hp:'',inv:'',h:0,t:0,f:0,s:0}))});
+let S;try{S=JSON.parse(localStorage.getItem(LK))}catch(e){}
+if(!S||!S.h)S=dflt();
+const save=()=>{try{localStorage.setItem(LK,JSON.stringify(S))}catch(e){}};
+const pad=n=>String(n).padStart(2,'0');
+const lt=()=>{const h=Math.floor(S.min/60);return h<6||h>=22?'ночь':h<8?'рассвет':h<18?'день':'вечер'};
+const clk=()=>`День ${S.day}, ${pad(Math.floor(S.min/60))}:${pad(S.min%60)}, ${lt()}`;
+function st(x){
+  let w=0;for(const l of x.inv.split('\n')){const m=l.match(/(\d+(?:[.,]\d+)?)\s*(?:кг)?\s*$/);if(m)w+=parseFloat(m[1].replace(',','.'))}
+  const c=+x.cap||(+x.kg||0)*.2||1,r=w/c;
+  return {w,c,s:r<=1?'комфортно':r<=1.5?'нагружен: медленнее, усталость растёт':r<=2?'тяжело: бежать нельзя':'только медленный шаг рывками'};
+}
+const names=x=>x.inv.split('\n').map(l=>l.replace(/[;,:]?\s*\d+(?:[.,]\d+)?\s*(?:кг)?\s*$/,'').trim()).filter(Boolean).join(', ');
+function wline(i){const r=st(S.h[i]),e=$('w'+i);e.textContent=`Несёт ${r.w.toFixed(1)} кг, порог ${r.c.toFixed(1)} кг: ${r.s}`;e.className='w'+(r.w>r.c?' bad':'')}
+function render(){
+  $('clk').textContent=clk();$('tp').value=S.tp;
+  $('hs').innerHTML=S.h.map((x,i)=>`<div class="hero"><b>Игрок ${i+1}</b>
+<div class="g"><input data-i="${i}" data-k="n" placeholder="Имя" value="${esc(x.n)}"><input data-i="${i}" data-k="kg" type="number" placeholder="Вес тела, кг" value="${x.kg}"></div>
+<div class="g"><input data-i="${i}" data-k="cap" type="number" step="0.5" placeholder="Порог ноши, кг (пусто = 20%)" value="${x.cap}"><input data-i="${i}" data-k="hp" placeholder="Раны, здоровье" value="${esc(x.hp)}"></div>
+<div class="g">${[['h','Голод'],['t','Жажда'],['f','Усталость'],['s','Стресс']].map(([k,l])=>`<div><label>${l} 0-10</label><input data-i="${i}" data-k="${k}" type="number" min="0" max="10" step="0.5" value="${Math.round((+x[k]||0)*2)/2}"></div>`).join('')}</div>
+<label>Инвентарь: предмет и вес в кг, по строке</label><textarea data-i="${i}" data-k="inv" placeholder="Топор 1.5">${esc(x.inv)}</textarea><div class="w" id="w${i}"></div></div>`).join('');
+  S.h.forEach((_,i)=>wline(i));
+}
+$('hs').addEventListener('input',e=>{
+  const d=e.target.dataset;if(!d.k)return;
+  const v=e.target.value;
+  S.h[d.i][d.k]=['kg','cap','h','t','f','s'].includes(d.k)?(v===''?'':+v):v;
+  wline(d.i);save();
+});
+function adv(m){
+  S.min+=m;while(S.min>=1440){S.min-=1440;S.day++}
+  S.h.forEach(x=>{for(const k in RATE)x[k]=Math.min(10,(+x[k]||0)+RATE[k]*m/60)});
+  render();save();
+}
+document.querySelectorAll('#clock [data-m]').forEach(b=>b.onclick=()=>adv(+b.dataset.m));
+$('tp').oninput=e=>{S.tp=e.target.value;save()};
+[0,1].forEach(i=>$('t'+i).onclick=()=>[0,1].forEach(j=>{$('p'+j).hidden=j!==i;$('t'+j).classList.toggle('on',j===i)}));
+
+$('dice').onclick=()=>{
+  const d=1+Math.floor(Math.random()*100),b=+$('df').value,m=+$('md').value||0,th=Math.max(0,Math.min(95,b+m));
+  const res=d<=5?'УСПЕХ, особенно удачный':d>=96?'ПРОВАЛ, тяжёлый исход':d<=th?'успех':'промах';
+  S.roll=`d100 = ${d}, порог ${th}% (${$('df').selectedOptions[0].text.toLowerCase()}${m?', сдвиг '+(m>0?'+':'')+m:''}): ${res}`;
+  $('rl').textContent=S.roll;$('rl').className='';save();
+};
+
+$('copy').onclick=async()=>{
+  const n=(x,k)=>Math.round((+x[k]||0)*10)/10;
+  const hv=(x,i)=>{const r=st(x);return `ИГРОК ${i+1}: ${x.n||'без имени'}; вес тела ${x.kg} кг; ${x.hp||'ран нет'}; голод ${n(x,'h')}/10, жажда ${n(x,'t')}/10, усталость ${n(x,'f')}/10, стресс ${n(x,'s')}/10; ноша ${r.w.toFixed(1)} из ${r.c.toFixed(1)} кг (${r.s}); вещи: ${names(x)||'пусто'}`};
+  const txt=[`ВРЕМЯ: ${clk()}${S.tp?', '+S.tp:''}`,...S.h.map(hv),'МЕСТНОСТЬ:\n'+(report||'не выбрана'),'БРОСОК: '+(S.roll||'нет'),`ДЕЙСТВИЯ:\nИгрок 1: ${$('a0').value.trim()||'-'}\nИгрок 2: ${$('a1').value.trim()||'-'}`].join('\n\n');
+  try{await navigator.clipboard.writeText(txt);$('copy').textContent='Скопировано'}
+  catch(e){$('copy').textContent='Не вышло, обнови страницу';}
+  S.roll='';$('rl').textContent='Броска ещё не было.';$('rl').className='hint';save();
+  setTimeout(()=>$('copy').textContent='Копировать для рассказчика',2500);
+};
+render();
+</script>
+</body>
+</html>
