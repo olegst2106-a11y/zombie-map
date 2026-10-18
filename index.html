@@ -18,7 +18,8 @@ button.main{background:var(--red);border-color:var(--red);font-weight:600}
 #panel{flex:1 1 40%;overflow:auto;padding:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--panel);border-top:2px solid var(--red)}
 #out{white-space:pre-wrap;user-select:text;font:14px/1.45 ui-monospace,Menlo,monospace;margin:0 0 10px}
 #note{width:100%;min-height:56px;margin-bottom:8px;resize:vertical}
-#copy{width:100%;position:sticky;bottom:0}
+.mkc{width:26px;height:26px;border-radius:50%;border:2px solid #fff;color:#fff;font:700 11px/22px system-ui,sans-serif;text-align:center;box-shadow:0 0 3px #000}
+#cp{position:sticky;bottom:0;background:var(--panel);padding-top:4px;display:flex;gap:6px}#cp button{padding:10px}
 .hint{color:var(--dim)}
 select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px}
 #tabs{display:flex;gap:6px;margin-bottom:8px}
@@ -51,7 +52,7 @@ details{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;padding
 <div id="mode"><button id="m2" class="on">Оба вместе</button><button id="m0">Игрок 1</button><button id="m1">Игрок 2</button><button id="mkb">Метка</button><select id="mt"></select><button id="mh">Карта ▲</button></div>
 <div id="map"></div>
 <div id="panel">
-  <div id="tabs"><button id="t0" class="on">Сводка</button><button id="t1">Герои</button><button id="t2">Мир</button></div>
+  <div id="tabs"><button id="t0" class="on">Сводка</button><button id="t1">Герои</button><button id="t2">Мир</button><button id="t3">Журнал</button></div>
   <section id="p0">
     <pre id="out" class="hint">Нажми на карту, чтобы поставить героев. Сводка появится здесь.</pre>
     <div class="g"><select id="df"><option value="80">Лёгкое</option><option value="55" selected>Обычное</option><option value="30">Трудное</option><option value="10">Почти невозможное</option></select><input id="md" type="number" value="0" step="5" aria-label="Сдвиг шанса, пункты"></div>
@@ -63,7 +64,8 @@ details{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;padding
     <div id="hs"></div>
   </section>
   <section id="p2" hidden><div id="wd"></div></section>
-  <button id="copy" class="main">Копировать для рассказчика</button>
+  <section id="p3" hidden><div id="lgw"></div></section>
+  <div id="cp"><button id="copy" class="main" style="flex:3">Копировать для рассказчика</button><button id="copy2" style="flex:1">Полная</button></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -155,7 +157,7 @@ function show(t,dim){const o=$('out');o.textContent=t;o.className=dim?'hint':''}
 function area(){
   if(!pos[0]&&!pos[1])return 'не выбрана';
   const d=pos[0]&&pos[1]?dist(pos[0][0],pos[0][1],pos[1][0],pos[1][1]):null,tog=d!==null&&d<=100;
-  const nm=i=>{const q=pos[i];if(!q)return [];const k=S.marks.filter(m=>!snapd(m,i)).map(m=>({m,d:dist(q[0],q[1],m.la,m.lo),w:dir(q[0],q[1],m.la,m.lo)})).filter(x=>x.d<=R).sort((a,b)=>a.d-b.d).map(x=>`${MT[x.m.t]} ${x.m.t}: ${x.w}, ${Math.round(x.d)} м${x.m.n?' ('+x.m.n+')':''}`);return k.length?['','Метки:',...k]:[]};
+  const nm=i=>{const q=pos[i];if(!q)return [];const k=S.marks.filter(m=>!snapd(m,i)).map(m=>({m,d:dist(q[0],q[1],m.la,m.lo),w:dir(q[0],q[1],m.la,m.lo)})).filter(x=>x.d<=R).sort((a,b)=>a.d-b.d).map(x=>`${x.m.t}: ${x.w}, ${Math.round(x.d)} м${x.m.n?' ('+x.m.n+')':''}`);return k.length?['','Метки:',...k]:[]};
   const sec=(h,i)=>[h,rep[i]?fmt(rep[i],i):'(нет данных сканера)',...nm(i)].join('\n');
   const o=[`Обзор ${R} м, «рядом» = до 100 м.`];
   if(tog)o.push(sec('ОБА ГЕРОЯ ВМЕСТЕ',0));
@@ -175,7 +177,7 @@ async function scan(lat,lng){
   show('Сканирую местность…',true);save();
   try{
     const [addr,els]=await Promise.all([geo(lat,lng),over(lat,lng)]);
-    const r=build(lat,lng,addr,els);t.forEach(i=>rep[i]=r);show(area());save();
+    const r=build(lat,lng,addr,els);t.forEach(i=>rep[i]=r);lg('сканирование: '+(r.addr||'').split(',').slice(0,2).join(','));show(area());save();
   }catch(e){
     show('Сервер карт не ответил. Нажми на карту ещё раз через несколько секунд.',true);
   }
@@ -198,7 +200,8 @@ $('q').onkeydown=e=>{if(e.key==='Enter')find()};
 const LK='zmb2',RATE={h:.45,t:.6,f:.6},SUN=[0,1,4];let mkMode=false;
 const ACT=[['покой',1.2,.4],['ходьба налегке',3.5,.6],['ходьба с грузом',4.5,.9],['бег',8,2],['сон',.95,-1.5],['тяжёлая работа',6,1.2]];
 const FOODS=[['Хлеб',250,8,3,49,[0,15,0,0,3,10,3,15]],['Тушёнка',230,15,18,0,[0,10,0,2,2,15,2,20]],['Гречка сухая',340,13,3,72,[0,25,0,0,5,25,2,0]],['Макароны сухие',350,12,1.5,72,[0,10,0,0,2,10,1,0]],['Рис сухой',350,7,1,78,[0,8,0,0,1,5,1,0]],['Фасоль консерв.',100,7,.5,17,[0,10,5,0,3,15,5,10]],['Картофель',77,2,.1,17,[0,10,20,0,1,5,1,5]],['Яблоко',52,.3,.2,14,[1,3,10,0,2,1,1,0]],['Апельсин',47,1,.1,12,[5,5,90,0,2,1,4,0]],['Овощи консерв.',25,1,.1,5,[20,5,15,0,3,5,3,25]],['Рыбные консервы',200,20,13,0,[5,15,0,60,5,10,20,25]],['Сыр',350,25,28,1,[20,5,0,5,3,2,70,40]],['Печенье',450,7,15,70,[0,5,0,0,3,5,2,10]],['Шоколад',540,6,31,58,[0,5,0,0,5,20,5,3]],['Орехи',600,18,55,10,[0,10,0,0,50,15,10,0]],['Сгущёнка',320,7,8,55,[5,10,0,3,1,1,25,5]]];
-const MT={'обыскано':'✔','затор':'🚧','зомби':'☠','орда':'☣','убежище':'🏠','опасность':'⚠','вода':'💧','топливо':'⛽','транспорт':'🚗','люди':'👤','добыча':'📦','закрыто':'🔒','заметка':'✎'};
+const MT={'обыскано':'ОБ','затор':'ЗТ','зомби':'ЗМ','орда':'ОР','убежище':'УБ','опасность':'ОП','вода':'ВД','топливо':'ТП','транспорт':'ТР','люди':'ЛД','добыча':'ДБ','закрыто':'ЗК','заметка':'ЗА'};
+const MC={'обыскано':'#6b7b80','затор':'#c2402f','зомби':'#c2402f','орда':'#8f1d1d','убежище':'#3f9a5a','опасность':'#d88a2a','вода':'#3a8fd6','топливо':'#c9a227','транспорт':'#c9a227','люди':'#8a5ad0','добыча':'#c9a227','закрыто':'#7a5a3a','заметка':'#4a6a8a'};
 const SNAP=45,EFF={'обыскано':'обыскан','добыча':'есть добыча','закрыто':'заперто','зомби':'зомби рядом','орда':'орда рядом','убежище':'убежище','опасность':'опасно','вода':'есть вода','топливо':'есть топливо','транспорт':'есть транспорт','люди':'люди','заметка':''};
 const LIC=['M','A','B','C','D','E','тракторист'],VM=[['A','вит. A'],['B','вит. B'],['C','вит. C'],['D','вит. D'],['E','вит. E'],['Fe','железо'],['Ca','кальций'],['El','электролиты']],VR=[.6,2,3.3,.8,.5,.5,.25,12];
 const VT={'Велосипед':[0,0,15,25,1,'—',0],'Самокат':[0,0,12,5,1,'—',0],'Ролики':[0,0,12,0,1,'—',0],'Скутер':[3,6,35,20,2,'M',1],'Мотоцикл':[5,15,40,40,2,'A',1],'Квадроцикл':[7,15,30,50,2,'A/тракторист',1],'Легковая':[8,50,30,400,5,'B',0],'Внедорожник':[12,70,30,500,5,'B',0],'Пикап':[11,70,30,900,5,'B',0],'Микроавтобус':[11,70,28,1000,8,'B/D',1],'Лёгкий фургон':[12,80,28,1000,3,'B',1],'Грузовик':[25,100,25,5000,3,'C',1],'Тягач с прицепом':[35,300,22,20000,2,'C/E',1],'Автобус':[30,200,22,2000,40,'D',1],'Трактор':[15,200,12,1000,2,'тракторист',1]};
@@ -212,8 +215,8 @@ function thl(f){const t=Math.max(0,Math.min(10,5+(f-21)/4));return t<=1?'опа�
 const alb=a=>a<.3?'трезв':a<1?'лёгкое':a<2?'пьян':a<3?'сильно пьян':'опасно';
 const wmsg=i=>{const x=S.h[i],f=feel(x);return `Одежда даёт +${warm(x)}, ощущается как ${Math.round(f)} °C: ${thl(f)}. Тело ${(+x.tb).toFixed(1)} °C. Опьянение ${x.al.toFixed(2)}‰ (${alb(x.al)}).`};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const hero=()=>({n:'',kg:70,cap:'',hp:'',inv:'',lic:'',h:0,t:0,f:0,s:0,pn:0,bl:0,if:0,tb:36.6,al:0,po:0,sk:0,sp:0,sf:0,sc:0,dk:0,dp:0,df:0,dc:0,bk:0,hg:0,wc:0,mn:[80,80,80,80,80,80,80,80],z:[0,0,0,0,0,0,0],eq:['','','','','','']});
-const dflt=()=>({ta:15,wx:0,mh:false,sel:0,op:{s:1},act:0,day:1,min:480,tp:'',roll:'',ph:100,sun:0,pos:[null,null],rep:['',''],marks:[],comp:[],veh:[],h:[hero(),hero()]});
+const hero=()=>({n:'',kg:70,cap:'',hp:'',inv:'',lic:'',h:0,t:0,f:0,s:0,pn:0,bl:0,if:0,tb:36.6,al:0,po:0,sl:0,sk:0,sp:0,sf:0,sc:0,dk:0,dp:0,df:0,dc:0,bk:0,hg:0,wc:0,mn:[80,80,80,80,80,80,80,80],z:[0,0,0,0,0,0,0],eq:['','','','','','']});
+const dflt=()=>({dev:[],wp:[],lg:[],lastSig:'',ta:15,wx:0,mh:false,sel:0,op:{s:1},act:0,day:1,min:480,tp:'',roll:'',ph:100,sun:0,pos:[null,null],rep:['',''],marks:[],comp:[],veh:[],h:[hero(),hero()]});
 let S;try{S=JSON.parse(localStorage.getItem(LK))}catch(e){}
 S=Object.assign(dflt(),S||{});S.h=S.h.map(x=>Object.assign(hero(),x));
 const save=()=>{S.pos=pos;S.rep=rep;try{localStorage.setItem(LK,JSON.stringify(S))}catch(e){}};
@@ -252,7 +255,7 @@ function render(){
   $('hs').innerHTML=`<div class="g">${[0,1].map(j=>`<button data-sel="${j}" class="${j==i?'on':''}" style="color:${COL[j]}">● ${esc(S.h[j].n||'Игрок '+(j+1))}</button>`).join('')}</div>
 <div class="hero"><div class="g"><input data-i="${i}" data-k="n" placeholder="Имя" value="${esc(x.n)}"><input data-i="${i}" data-k="kg" type="number" step="0.1" placeholder="Вес, кг (считается сам)" value="${Math.round((+x.kg||0)*10)/10}"></div>
 <div class="g"><input data-i="${i}" data-k="cap" type="number" step="0.5" placeholder="Порог ноши, кг (пусто = 20%)" value="${x.cap}"><input data-i="${i}" data-k="hp" placeholder="Здоровье, заметки" value="${esc(x.hp)}"></div><div class="w" id="w${i}"></div></div>`+
-  det('s','Состояние и раны',`<div class="dl">${doll(i)}<div>${EQ.map((l,k)=>`<input data-i="${i}" data-e="${k}" placeholder="Надето: ${l}" value="${esc(x.eq[k])}">`).join('')}</div></div><label>Тап по зоне тела: ушиб, тяжёлая рана, перелом, норма</label><div class="w" id="wm${i}">${wmsg(i)}</div><div class="g">${ND.map(([k,l,c])=>sbar(i,k,l,c)).join('')}<div><label>Температура тела, °C</label><input data-i="${i}" data-k="tb" type="number" step="0.1" value="${x.tb}"></div></div>`)+
+  det('s','Состояние и раны',`<div class="dl">${doll(i)}<div>${EQ.map((l,k)=>`<input data-i="${i}" data-e="${k}" placeholder="Надето: ${l}" value="${esc(x.eq[k])}">`).join('')}</div></div><label>Тап по зоне тела: ушиб, тяжёлая рана, перелом, норма</label><div class="w" id="wm${i}">${wmsg(i)}</div><div class="w">Симптомы: ${sym(x).join('; ')||'нет'}</div><div class="g">${ND.map(([k,l,c])=>sbar(i,k,l,c)).join('')}<div><label>Температура тела, °C</label><input data-i="${i}" data-k="tb" type="number" step="0.1" value="${x.tb}"></div></div>`)+
   det('n','Питание и тело',bodyHTML(i))+
   det('v','Вещи',`<label>Предмет и вес в кг, по строке (×3 для количества)</label><textarea data-i="${i}" data-k="inv" placeholder="Топор 1.5">${esc(x.inv)}</textarea>`)+
   det('d','Документы: водительские права',`<div class="g" style="grid-template-columns:repeat(4,1fr)">${LIC.map(t=>`<button class="chip ${(x.lic||'').split(' ').includes(t)?'on':''}" data-lic="${t}" data-i="${i}">${t}</button>`).join('')}</div>`);
@@ -268,7 +271,7 @@ $('hs').addEventListener('click',e=>{
   const t=e.target.closest('[data-sel],[data-z],[data-lic],[data-a]');if(!t)return;const d=t.dataset;
   if(d.sel!==undefined){S.sel=+d.sel;render();save();return}
   const i=+d.i,x=S.h[i],q=k=>+($('hs').querySelector(`[data-b="${k}"]`).value)||0;
-  if(d.z!==undefined){const k=+d.z;x.z[k]=(x.z[k]+1)%4;t.setAttribute('fill',ZC[x.z[k]]);$('zc'+i).textContent=zcap(x);save();return}
+  if(d.z!==undefined){const k=+d.z;x.z[k]=(x.z[k]+1)%4;lg((x.n||'И'+(i+1))+': '+ZN[k]+' - '+(ZS[x.z[k]]||'норма'));t.setAttribute('fill',ZC[x.z[k]]);$('zc'+i).textContent=zcap(x);save();return}
   if(d.lic!==undefined){const a=(x.lic||'').split(' ').filter(Boolean),k=a.indexOf(d.lic);k<0?a.push(d.lic):a.splice(k,1);x.lic=a.join(' ');render();save();return}
   const a=d.a;
   if(a==='eat'){const f=FOODS[q('fd')],g=q('g')/100;eat(x,f[1]*g,f[2]*g,f[3]*g,f[4]*g,f[5],g)}
@@ -277,6 +280,7 @@ $('hs').addEventListener('click',e=>{
   else if(a==='pill')x.mn=x.mn.map((v,k)=>k<7?Math.min(100,v+30):v);
   else if(a==='salt')x.mn[7]=Math.min(100,x.mn[7]+40);
   else if(a==='wash')x.hg=Math.max(0,x.hg-6);else if(a==='wc')x.wc=0;else return;
+  lg((x.n||'И'+(i+1))+': '+({eat:'поел',own:'поел своё',drink:'выпил',pill:'мультивитамин',salt:'электролиты',wash:'помылся',wc:'в туалет'})[a]+' (грязь '+x.hg.toFixed(1)+', желудок '+Math.round(x.sk)+' ккал)');
   render();save();
 });
 function adv(m){
@@ -293,35 +297,43 @@ function adv(m){
     x.mn=x.mn.map((v,k)=>Math.max(0,v-VR[k]*m/1440));
     if(x.z.some(v=>v>0)&&x.hg>=6)x.if=c(x.if+.1*m/60);
     x.hg=c(x.hg+.15*m/60*(.5+a[1]/3)*(S.wx==2?1.5:1));x.wc=c(x.wc+.3*m/60);
-    x.al=Math.max(0,x.al-.15*m/60);x.po=c(x.po-.2*m/60);
+    if(S.act==4)x.sl=(x.sl||0)+m/60;x.al=Math.max(0,x.al-.15*m/60);x.po=c(x.po-.2*m/60);
     const tg=f<8?36.6-(8-f)*.12:f>32?36.6+(f-32)*.1:36.6;
     x.tb=Math.max(30,Math.min(42,(+x.tb||36.6)+(tg-x.tb)*(1-Math.exp(-m/180))));
-    if(nd){x.dk=x.dp=x.df=x.dc=x.bk=0}
+    if(nd){x.dk=x.dp=x.df=x.dc=x.bk=0;x.sl=0}
   });
+  S.dev.forEach(d=>{if(d.on)d.c=Math.max(0,d.c-d.r*m/60)});
   S.ph=Math.max(0,Math.min(100,S.ph-.5*m/60+(['рассвет','день'].includes(lt())?SUN[S.sun]*m/60:0)));
   render();renderWorld();save();
 }
-document.querySelectorAll('#clock [data-m]').forEach(b=>b.onclick=()=>adv(+b.dataset.m));
+document.querySelectorAll('#clock [data-m]').forEach(b=>b.onclick=()=>{lg('время +'+b.dataset.m+' мин, '+ACT[S.act][0]);adv(+b.dataset.m)});
 $('tp').oninput=e=>{S.tp=e.target.value;save()};
 $('ta').value=S.ta;$('ta').oninput=e=>{S.ta=e.target.value===''?'':+e.target.value;save()};$('wx').value=S.wx;$('wx').onchange=e=>{S.wx=+e.target.value;render();save()};
 $('act').innerHTML=ACT.map((a,i)=>`<option value="${i}">${a[0]}</option>`).join('');$('act').value=S.act;$('act').onchange=e=>{S.act=+e.target.value;save()};
-[0,1,2].forEach(i=>$('t'+i).onclick=()=>[0,1,2].forEach(j=>{$('p'+j).hidden=j!==i;$('t'+j).classList.toggle('on',j===i)}));
+[0,1,2,3].forEach(i=>$('t'+i).onclick=()=>[0,1,2,3].forEach(j=>{$('p'+j).hidden=j!==i;$('t'+j).classList.toggle('on',j===i)}));
 
 function renderWorld(){
   $('wd').innerHTML=`<div class="hero"><b>КПК</b><div class="g"><div><label>Заряд, %</label><input data-g="p" type="number" min="0" max="100" value="${Math.round(S.ph)}"></div><div><label>Солнце на панели</label><select data-g="sun">${['нет','пасмурно','ясно'].map((x,i)=>`<option value="${i}"${i==S.sun?' selected':''}>${x}</option>`).join('')}</select></div></div><button data-a="ai" style="width:100%">Запрос помощнику (−2%)</button></div>
 <div class="hero"><b>Спутники</b>${S.comp.map((c,i)=>`<div class="g"><input data-g="c" data-i="${i}" data-k="n" placeholder="Имя" value="${esc(c.n)}"><input data-g="c" data-i="${i}" data-k="k" placeholder="Кто (кошка, человек)" value="${esc(c.k)}"><input data-g="c" data-i="${i}" data-k="s" placeholder="Состояние" value="${esc(c.s)}"><button data-a="dc" data-i="${i}">Убрать</button></div>`).join('')}<button data-a="ac" style="width:100%">+ Спутник</button></div>
 <div class="hero"><b>Транспорт</b>${S.veh.map((v,i)=>{const r=VT[v.t];return `<div class="hero"><div class="g"><select data-g="v" data-i="${i}" data-k="t">${Object.keys(VT).map(k=>`<option${k==v.t?' selected':''}>${k}</option>`).join('')}</select><input data-g="v" data-i="${i}" data-k="n" placeholder="Название, состояние" value="${esc(v.n)}"></div>${r[1]?`<label>Топливо в баке, л (бак ${r[1]} л)</label><input data-g="v" data-i="${i}" data-k="f" type="number" min="0" max="${r[1]}" step="0.5" value="${v.f}" style="width:100%"><div class="bar"><i style="width:${Math.min(100,v.f/r[1]*100)}%;background:#d8a34a"></i></div>`:'<div class="w">Без топлива: едет на мускульной силе</div>'}<div class="w">${vinfo(v)}</div><div class="g"><button data-a="dr" data-i="${i}">Проехать N км</button><button data-a="dv" data-i="${i}">Убрать</button></div>${r[1]?`<button data-a="fl" data-i="${i}" style="width:100%;margin-top:6px">Бак полный</button>`:''}</div>`}).join('')}<button data-a="av" style="width:100%">+ Транспорт</button></div>
-<div class="hero"><b>Метки от рассказчика</b><label>Строка: тип | игрок 1 или 2 | сторона | метры | подпись</label><textarea id="imp" placeholder="зомби | 1 | СВ | 150 | орда у ТЦ"></textarea><button data-a="im" style="width:100%">Поставить метки</button></div>`;
+<div class="hero"><b>Устройства (кроме КПК)</b>${S.dev.map((d,i)=>`<div class="g" style="grid-template-columns:2fr 1fr 1fr 1fr auto"><input data-g="d" data-i="${i}" data-k="n" placeholder="Название" value="${esc(d.n)}"><input data-g="d" data-i="${i}" data-k="c" type="number" min="0" max="100" value="${Math.round(d.c)}" title="Заряд, %"><input data-g="d" data-i="${i}" data-k="r" type="number" step="0.5" value="${d.r}" title="Расход, %/ч"><button data-a="dt" data-i="${i}" class="${d.on?'on':''}">${d.on?'Вкл':'Выкл'}</button><button data-a="dd" data-i="${i}">×</button></div>`).join('')}<label>Поля: название, заряд %, расход %/ч</label><div class="g" style="grid-template-columns:1fr 1fr 1fr"><button data-a="ad1">+ Фонарь</button><button data-a="ad2">+ Рация</button><button data-a="ad3">+ Другое</button></div></div>
+<div class="hero"><b>Оружие и патроны</b>${S.wp.map((w,i)=>`<div class="g"><input data-g="w" data-i="${i}" data-k="n" placeholder="Название, состояние" value="${esc(w.n)}"><input data-g="w" data-i="${i}" data-k="mg" type="number" placeholder="Ёмкость магазина" value="${w.mg}"><input data-g="w" data-i="${i}" data-k="m" type="number" placeholder="В магазине" value="${w.m}"><input data-g="w" data-i="${i}" data-k="r" type="number" placeholder="Запас патронов" value="${w.r}"><button data-a="ws" data-i="${i}">Выстрелить N</button><button data-a="wr" data-i="${i}">Перезарядить</button><button data-a="ww" data-i="${i}" style="grid-column:1/3">Убрать</button></div>`).join('')}<button data-a="aw" style="width:100%">+ Оружие</button></div>
+<div class="hero"><b>Ответ рассказчика</b><label>Вставьте ответ целиком: страница найдёт строки блока ПЛАНШЕТ (метки, время, раны, шкалы)</label><textarea id="imp" placeholder="зомби | 1 | СВ | 150 | орда у ТЦ&#10;время | 20&#10;рана | 1 | л.рука | рана&#10;шкала | 1 | стресс | +2"></textarea><button data-a="im" style="width:100%">Применить</button></div>`;
 }
 $('wd').addEventListener('input',e=>{
   const d=e.target.dataset,v=e.target.value;
   if(d.g==='p')S.ph=+v||0;else if(d.g==='sun')S.sun=+v;
-  else if(d.g==='c')S.comp[d.i][d.k]=v;else if(d.g==='v')S.veh[d.i][d.k]=d.k==='f'?+v||0:v;
+  else if(d.g==='d')S.dev[d.i][d.k]=d.k==='n'?v:+v||0;else if(d.g==='w')S.wp[d.i][d.k]=d.k==='n'?v:+v||0;else if(d.g==='c')S.comp[d.i][d.k]=v;else if(d.g==='v')S.veh[d.i][d.k]=d.k==='f'?+v||0:v;
   save();
 });
 $('wd').addEventListener('click',e=>{
   const b=e.target.closest('[data-a]');if(!b)return;const a=b.dataset.a,i=+b.dataset.i;
   if(a==='ai')S.ph=Math.max(0,S.ph-2);
+  else if(a==='ad1')S.dev.push({n:'Фонарь',c:100,r:8,on:false});else if(a==='ad2')S.dev.push({n:'Рация',c:100,r:3,on:false});else if(a==='ad3')S.dev.push({n:'',c:100,r:2,on:false});
+  else if(a==='dt')S.dev[i].on=!S.dev[i].on;else if(a==='dd')S.dev.splice(i,1);
+  else if(a==='aw')S.wp.push({n:'',mg:8,m:0,r:0});else if(a==='ww')S.wp.splice(i,1);
+  else if(a==='ws'){const w=S.wp[i],n=parseInt(prompt('Сколько выстрелов? В магазине '+w.m,'1'))||0;if(n<=0)return;if(n>w.m){alert('В магазине только '+w.m);return}w.m-=n;lg((w.n||'оружие')+': выстрелов '+n+', в магазине '+w.m)}
+  else if(a==='wr'){const w=S.wp[i],k=Math.min(w.mg-w.m,w.r);w.m+=k;w.r-=k;lg((w.n||'оружие')+': перезарядка, в магазине '+w.m+', запас '+w.r)}
   else if(a==='ac')S.comp.push({n:'',k:'',s:''});else if(a==='dc')S.comp.splice(i,1);
   else if(a==='av')S.veh.push({t:'Велосипед',n:'',f:0});else if(a==='dv')S.veh.splice(i,1);
   else if(a==='fl')S.veh[i].f=VT[S.veh[i].t][1];
@@ -339,23 +351,29 @@ function drive(i){
     if(need>v.f){alert('Топлива не хватит. Хватит примерно на '+Math.floor(v.f/(need/km))+' км.');return}
     v.f=+(v.f-need).toFixed(1);
   }
-  const a0=S.act;S.act=r[0]?0:1;adv(Math.round(km/r[2]*60));S.act=a0;$('act').value=a0;
+  lg('поездка '+km+' км: '+v.t+(r[0]?', топливо осталось '+v.f+' л':''));const a0=S.act;S.act=r[0]?0:1;adv(Math.round(km/r[2]*60));S.act=a0;$('act').value=a0;
 }
 function impMarks(txt){
-  let n=0;
+  const c={m:0,w:0,s:0},NS={'голод':'h','жажда':'t','усталость':'f','стресс':'s','боль':'pn','кровопотеря':'bl','инфекция':'if','отравление':'po'};let tm=0;
   for(const l of txt.split('\n')){
-    const a=l.split('|').map(x=>x.trim());if(a.length<4)continue;
-    const t=Object.keys(MT).find(k=>a[0].toLowerCase().startsWith(k.slice(0,4))),i=(+a[1]||1)-1,w=DIRS.indexOf(a[2].toUpperCase()),m=parseFloat(a[3]),p=pos[i];
+    const a=l.split('|').map(x=>x.trim());if(a.length<2)continue;const k=a[0].toLowerCase();
+    if(k==='время'){if(+a[1]>0)tm+=+a[1];continue}
+    const i=(+a[1]||1)-1,x=S.h[i];
+    if(k==='рана'&&x&&a.length>=4){const z=ZN.findIndex(n=>n.startsWith(a[2].toLowerCase())),lv=/перел/i.test(a[3])?3:/тяж|рана/i.test(a[3])?2:/ушиб|ссад/i.test(a[3])?1:0;if(z>=0){x.z[z]=lv;lg((x.n||'И'+(i+1))+': '+ZN[z]+' - '+(ZS[lv]||'норма')+' (рассказчик)');c.w++}continue}
+    if(k==='шкала'&&x&&a.length>=4){const kk=NS[a[2].toLowerCase()],d=parseFloat(a[3].replace(',','.'));if(kk&&!isNaN(d)){x[kk]=Math.max(0,Math.min(10,(+x[kk]||0)+d));lg((x.n||'И'+(i+1))+': '+a[2]+' '+a[3]+' (рассказчик)');c.s++}continue}
+    if(a.length<4)continue;
+    const t=Object.keys(MT).find(q=>k.startsWith(q.slice(0,4))),w=DIRS.indexOf(a[2].toUpperCase()),m=parseFloat(a[3]),p=pos[i];
     if(!t||w<0||!(m>0)||!p)continue;
-    const b=w*Math.PI/4;addMark(t,p[0]+m*Math.cos(b)/111320,p[1]+m*Math.sin(b)/(111320*Math.cos(p[0]*Math.PI/180)),a[4]||'');n++;
+    const b=w*Math.PI/4;addMark(t,p[0]+m*Math.cos(b)/111320,p[1]+m*Math.sin(b)/(111320*Math.cos(p[0]*Math.PI/180)),a[4]||'');c.m++;
   }
-  alert('Поставлено меток: '+n);
+  if(tm){lg('время +'+tm+' мин (рассказчик)');adv(tm)}else{render();save()}
+  alert(`Применено: меток ${c.m}, время ${tm} мин, ран ${c.w}, шкал ${c.s}`);
 }
 function drawMark(o){
-  const m=L.marker([o.la,o.lo],{icon:L.divIcon({className:'mk',html:MT[o.t],iconSize:[28,28]})}).addTo(map);
+  const m=L.marker([o.la,o.lo],{icon:L.divIcon({className:'mk',html:`<div class="mkc" style="background:${MC[o.t]}">${MT[o.t]}</div>`,iconSize:[28,28]})}).addTo(map);
   m.on('click',()=>{if(confirm('Удалить метку: '+o.t+(o.n?' ('+o.n+')':'')+'?')){map.removeLayer(m);S.marks=S.marks.filter(x=>x!==o);save();out()}});
 }
-function addMark(t,la,lo,n){const o={t,la,lo,n};S.marks.push(o);drawMark(o);save();out()}
+function addMark(t,la,lo,n){const o={t,la,lo,n};lg('метка: '+t+(n?' ('+n+')':''));S.marks.push(o);drawMark(o);save();out()}
 function onMap(la,lo){
   if(mkMode){const n=prompt('Подпись метки (можно пусто)','');if(n===null)return;addMark($('mt').value,la,lo,n.trim())}
   else scan(la,lo);
@@ -373,21 +391,55 @@ $('dice').onclick=()=>{
   $('rl').textContent=S.roll+' (скопировано)';$('rl').className='';try{navigator.clipboard.writeText(S.roll)}catch(e){}save();
 };
 
-$('copy').onclick=async()=>{
-  const n=(x,k)=>Math.round((+x[k]||0)*10)/10;
-  const nut=x=>`питание за день: ${Math.round(x.dk)} ккал (Б ${Math.round(x.dp)}, Ж ${Math.round(x.df)}, У ${Math.round(x.dc)}), потрачено ${Math.round(x.bk)}; желудок ${Math.round(x.sk)} ккал; запасы %: ${VM.map((v,k)=>v[0]+' '+Math.round(x.mn[k])).join(', ')}; грязь ${n(x,'hg')}/10; туалет ${n(x,'wc')}/10`;
-  const hv=(x,i)=>{const r=st(x),z=ZN.map((a,k)=>x.z[k]?`${a}: ${ZS[x.z[k]]}`:'').filter(Boolean).join(', '),eq=EQ.map((l,k)=>x.eq[k]?`${l} ${x.eq[k]}`:'').filter(Boolean).join(', ');
-    return `ИГРОК ${i+1}: ${x.n||'без имени'}; вес тела ${(+x.kg).toFixed(1)} кг; активность: ${ACT[S.act][0]}; раны: ${[x.hp,z].filter(Boolean).join('; ')||'нет'}; голод ${n(x,'h')}/10, жажда ${n(x,'t')}/10, усталость ${n(x,'f')}/10, стресс ${n(x,'s')}/10, боль ${n(x,'pn')}/10, кровопотеря ${n(x,'bl')}/10, инфекция ${n(x,'if')}/10, отравление ${n(x,'po')}/10, температура тела ${(+x.tb).toFixed(1)}, одежда +${warm(x)} (ощущается как ${Math.round(feel(x))} °C, ${thl(feel(x))}), опьянение ${x.al.toFixed(2)}‰ (${alb(x.al)}); ноша ${r.w.toFixed(1)} из ${r.c.toFixed(1)} кг (${r.s}); надето: ${eq||'-'}; вещи: ${names(x)||'пусто'}; ${nut(x)}`};
-  const o=[`ВРЕМЯ: ${clk()}, воздух ${S.ta}°C${S.wx?', '+['','ветер','дождь'][S.wx]:''}${S.tp?', '+S.tp:''}`,...S.h.map(hv),`КПК: заряд ${Math.round(S.ph)}%`];
+function sym(x){const a=[];
+  if(x.tb<35)a.push('озноб, дрожь, спутанность');else if(x.tb>38)a.push('жар, потливость');
+  if(x.po>=4)a.push('тошнота, диарея');if(x.if>=4)a.push('воспаление ран, лихорадка');
+  if(x.mn[2]<30)a.push('кровоточат дёсны, слабость (нехватка C)');if(x.mn[5]<30)a.push('бледность, одышка (нехватка железа)');if(x.mn[7]<20)a.push('судороги (нехватка электролитов)');
+  if(x.bl>=5)a.push('слабость, головокружение');if(x.pn>=6)a.push('сильная боль');if(x.h>=8)a.push('слабость от голода');if(x.t>=8)a.push('сухость, головная боль');if(x.f>=8)a.push('клюёт носом');if(x.al>=1)a.push('нарушена координация');return a}
+const lg=t=>{S.lg.push([S.day,S.min,t]);if(S.lg.length>300)S.lg.shift();if(document.getElementById('lp'))fillLog()};
+const fl=e=>`Д${e[0]} ${pad(Math.floor(e[1]/60))}:${pad(e[1]%60)} ${e[2]}`;
+function fillLog(){$('lp').textContent=S.lg.slice(-80).reverse().map(fl).join('\n')}
+function renderLog(){
+  $('lgw').innerHTML=`<div class="hero"><b>Журнал событий</b><div class="g"><input id="ln" placeholder="Заметка в журнал"><button id="la">Добавить</button></div><div class="g"><button id="lc">Копировать за сутки</button><button id="lx">Очистить</button></div><pre id="lp" style="white-space:pre-wrap;margin:6px 0 0;font:13px ui-monospace,Menlo,monospace"></pre></div>`;
+  fillLog();
+  $('la').onclick=()=>{const v=$('ln').value.trim();if(v){lg('заметка: '+v);$('ln').value=''}};
+  $('lc').onclick=async()=>{const t=S.day*1440+S.min-1440,e=S.lg.filter(x=>x[0]*1440+x[1]>=t).map(fl);try{await navigator.clipboard.writeText('ЖУРНАЛ ЗА СУТКИ (для файла 04)\n'+e.join('\n'));$('lc').textContent='Скопировано'}catch(er){}setTimeout(()=>$('lc').textContent='Копировать за сутки',2000)};
+  $('lx').onclick=()=>{if(confirm('Очистить журнал?')){S.lg=[];fillLog();save()}};
+}
+function makeSummary(full){
+  const R=Math.round,r1=v=>Math.round((+v||0)*10)/10;
+  const hv=(x,i)=>{
+    const r=st(x),f=feel(x),z=ZN.map((a,k)=>x.z[k]?`${a}: ${ZS[x.z[k]]}`:'').filter(Boolean).join(', '),eq=EQ.map((l,k)=>x.eq[k]?`${l} ${x.eq[k]}`:'').filter(Boolean).join(', ');
+    const sc=[['голод',x.h],['жажда',x.t],['усталость',x.f],['стресс',x.s],['боль',x.pn],['кровопотеря',x.bl],['инфекция',x.if],['отравление',x.po],['грязь',x.hg],['туалет',x.wc]].filter(([,v])=>full||v>=2).map(([l,v])=>l+' '+r1(v)).join(', ');
+    const lo=VM.map((v,k)=>[v[0],x.mn[k]]).filter(([,v])=>full||v<60).map(([a,v])=>a+' '+R(v)).join(', '),sy=sym(x).join(', '),o=[];
+    o.push(`ИГРОК ${i+1}: ${x.n||'без имени'}`,`вес ${(+x.kg).toFixed(1)} кг`,`активность: ${ACT[S.act][0]}`);
+    if(z||x.hp||full)o.push('раны: '+([x.hp,z].filter(Boolean).join('; ')||'нет'));
+    o.push('шкалы 0-10: '+(sc||'всё в норме'));
+    o.push(`ощущается как ${R(f)} °C (${thl(f)}), тело ${(+x.tb).toFixed(1)} °C`);
+    if(x.al>.05||full)o.push(`опьянение ${x.al.toFixed(2)}‰ (${alb(x.al)})`);
+    o.push(`ноша ${r.w.toFixed(1)} из ${r.c.toFixed(1)} кг`+(r.s==='комфортно'?'':' ('+r.s+')'));
+    if(eq||full)o.push('надето: '+(eq||'-'));
+    o.push('вещи: '+(names(x)||'пусто'));
+    o.push(`за день: ${R(x.dk)} ккал (Б ${R(x.dp)}, Ж ${R(x.df)}, У ${R(x.dc)}), потрачено ${R(x.bk)}, в желудке ${R(x.sk)} ккал`);
+    o.push('запасы '+(lo?'низкие: '+lo:'в норме'));
+    if(x.sl>0||full)o.push(`спал сегодня ${r1(x.sl)} ч`);
+    if(sy)o.push('симптомы: '+sy);
+    return o.join('; ')};
+  const o=[`ВРЕМЯ: ${clk()}, воздух ${S.ta}°C${S.wx?', '+['','ветер','дождь'][S.wx]:''}${S.tp?', '+S.tp:''}`,...S.h.map(hv),`КПК: ${R(S.ph)}%`+(S.dev.length?'; '+S.dev.map(d=>`${d.n||'устройство'} ${R(d.c)}%${d.on?' (вкл)':''}`).join(', '):'')];
+  if(S.wp.length)o.push('ОРУЖИЕ: '+S.wp.map(w=>`${w.n||'оружие'}, в магазине ${w.m} из ${w.mg}, запас ${w.r}`).join('; '));
   if(S.comp.length)o.push('СПУТНИКИ: '+S.comp.map(c=>`${c.n||'?'} (${c.k||'-'}): ${c.s||'-'}`).join('; '));
   if(S.veh.length)o.push('ТРАНСПОРТ: '+S.veh.map(v=>`${v.t} (кат. ${VT[v.t][5]})${v.n?' '+v.n:''}${VT[v.t][0]?', топливо '+v.f+' из '+VT[v.t][1]+' л':''}`).join('; '));
-  o.push('МЕСТНОСТЬ:\n'+area());
-  try{await navigator.clipboard.writeText(o.join('\n\n'));$('copy').textContent='Скопировано'}
-  catch(e){$('copy').textContent='Не вышло, обнови страницу'}
-  save();
-  setTimeout(()=>$('copy').textContent='Копировать для рассказчика',2500);
-};
-render();renderWorld();
+  const sig=JSON.stringify([pos,S.marks.map(m=>m.t+m.la.toFixed(4)+m.lo.toFixed(4))]);
+  o.push('МЕСТНОСТЬ:\n'+(!full&&sig===S.lastSig?'без изменений с прошлой сводки (точка, объекты и метки те же)':area()));
+  return {txt:o.join('\n\n'),sig};
+}
+async function doCopy(full){
+  const {txt,sig}=makeSummary(full);
+  try{await navigator.clipboard.writeText(txt);S.lastSig=sig;$('copy').textContent='Скопировано ('+txt.length+' симв.)'}catch(e){$('copy').textContent='Не вышло, обнови страницу'}
+  save();setTimeout(()=>$('copy').textContent='Копировать для рассказчика',2500);
+}
+$('copy').onclick=()=>doCopy(false);$('copy2').onclick=()=>doCopy(true);
+render();renderWorld();renderLog();
 (S.pos||[]).forEach((p,i)=>{if(!p)return;pos[i]=p;rep[i]=(S.rep||[])[i]||'';
   mk[i]=L.circleMarker(p,{radius:9,color:'#fff',weight:2,fillColor:COL[i],fillOpacity:1}).addTo(map);
   rg[i]=L.circle(p,{radius:R,color:COL[i],weight:1,dashArray:'4 4',fill:false}).addTo(map)});
