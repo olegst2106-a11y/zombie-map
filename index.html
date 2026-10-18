@@ -158,7 +158,7 @@ function area(){
   if(!pos[0]&&!pos[1])return 'не выбрана';
   const d=pos[0]&&pos[1]?dist(pos[0][0],pos[0][1],pos[1][0],pos[1][1]):null,tog=d!==null&&d<=100;
   const nm=i=>{const q=pos[i];if(!q)return [];const k=S.marks.filter(m=>!snapd(m,i)).map(m=>({m,d:dist(q[0],q[1],m.la,m.lo),w:dir(q[0],q[1],m.la,m.lo)})).filter(x=>x.d<=R).sort((a,b)=>a.d-b.d).map(x=>`${x.m.t}: ${x.w}, ${Math.round(x.d)} м${x.m.n?' ('+x.m.n+')':''}`);return k.length?['','Метки:',...k]:[]};
-  const sec=(h,i)=>[h,rep[i]?fmt(rep[i],i):'(нет данных сканера)',...nm(i)].join('\n');
+  const sec=(h,i)=>[h,rep[i]?fmt(rep[i],i):'(сканер не ответил или ещё идёт: нажмите на карту ещё раз)',...nm(i)].join('\n');
   const o=[`Обзор ${R} м, «рядом» = до 100 м.`];
   if(tog)o.push(sec('ОБА ГЕРОЯ ВМЕСТЕ',0));
   else{[0,1].forEach(i=>o.push(pos[i]?sec(`ИГРОК ${i+1} (${S.h[i].n||'без имени'})`,i):`ИГРОК ${i+1}: ещё не на карте`));if(d!==null)o.push(`Между героями: ${Math.round(d)} м, игрок 2 на ${dir(...pos[0],...pos[1])} от игрока 1.`)}
@@ -176,7 +176,7 @@ async function scan(lat,lng){
   });
   show('Сканирую местность…',true);save();
   try{
-    const [addr,els]=await Promise.all([geo(lat,lng),over(lat,lng)]);
+    let addr,els;for(let k=0;k<3;k++){try{[addr,els]=await Promise.all([geo(lat,lng),over(lat,lng)]);break}catch(e){if(k==2)throw e;await new Promise(r=>setTimeout(r,1500))}}
     const r=build(lat,lng,addr,els);t.forEach(i=>rep[i]=r);lg('сканирование: '+(r.addr||'').split(',').slice(0,2).join(','));show(area());save();
   }catch(e){
     show('Сервер карт не ответил. Нажми на карту ещё раз через несколько секунд.',true);
@@ -391,7 +391,7 @@ $('dice').onclick=()=>{
   $('rl').textContent=S.roll+' (скопировано)';$('rl').className='';try{navigator.clipboard.writeText(S.roll)}catch(e){}save();
 };
 
-function sym(x){const a=[];
+function sym(x){const a=[];if(x.sk>1500)a.push('тяжесть, тошнота (переел)');
   if(x.tb<35)a.push('озноб, дрожь, спутанность');else if(x.tb>38)a.push('жар, потливость');
   if(x.po>=4)a.push('тошнота, диарея');if(x.if>=4)a.push('воспаление ран, лихорадка');
   if(x.mn[2]<30)a.push('кровоточат дёсны, слабость (нехватка C)');if(x.mn[5]<30)a.push('бледность, одышка (нехватка железа)');if(x.mn[7]<20)a.push('судороги (нехватка электролитов)');
@@ -421,16 +421,16 @@ function makeSummary(full){
     if(eq||full)o.push('надето: '+(eq||'-'));
     o.push('вещи: '+(names(x)||'пусто'));
     o.push(`за день: ${R(x.dk)} ккал (Б ${R(x.dp)}, Ж ${R(x.df)}, У ${R(x.dc)}), потрачено ${R(x.bk)}, в желудке ${R(x.sk)} ккал`);
-    o.push('запасы '+(lo?'низкие: '+lo:'в норме'));
+    o.push('запасы '+(lo?(full?'':'низкие: ')+lo:'в норме'));
     if(x.sl>0||full)o.push(`спал сегодня ${r1(x.sl)} ч`);
     if(sy)o.push('симптомы: '+sy);
     return o.join('; ')};
   const o=[`ВРЕМЯ: ${clk()}, воздух ${S.ta}°C${S.wx?', '+['','ветер','дождь'][S.wx]:''}${S.tp?', '+S.tp:''}`,...S.h.map(hv),`КПК: ${R(S.ph)}%`+(S.dev.length?'; '+S.dev.map(d=>`${d.n||'устройство'} ${R(d.c)}%${d.on?' (вкл)':''}`).join(', '):'')];
   if(S.wp.length)o.push('ОРУЖИЕ: '+S.wp.map(w=>`${w.n||'оружие'}, в магазине ${w.m} из ${w.mg}, запас ${w.r}`).join('; '));
-  if(S.comp.length)o.push('СПУТНИКИ: '+S.comp.map(c=>`${c.n||'?'} (${c.k||'-'}): ${c.s||'-'}`).join('; '));
+  const cm=S.comp.filter(c=>c.n||c.k||c.s);if(cm.length)o.push('СПУТНИКИ: '+cm.map(c=>`${c.n||'?'} (${c.k||'-'}): ${c.s||'-'}`).join('; '));
   if(S.veh.length)o.push('ТРАНСПОРТ: '+S.veh.map(v=>`${v.t} (кат. ${VT[v.t][5]})${v.n?' '+v.n:''}${VT[v.t][0]?', топливо '+v.f+' из '+VT[v.t][1]+' л':''}`).join('; '));
-  const sig=JSON.stringify([pos,S.marks.map(m=>m.t+m.la.toFixed(4)+m.lo.toFixed(4))]);
-  o.push('МЕСТНОСТЬ:\n'+(!full&&sig===S.lastSig?'без изменений с прошлой сводки (точка, объекты и метки те же)':area()));
+  const ok=pos.every((p,i)=>!p||rep[i]),sig=ok?JSON.stringify([pos,S.marks.map(m=>m.t+m.la.toFixed(4)+m.lo.toFixed(4))]):'';
+  o.push('МЕСТНОСТЬ:\n'+(!full&&sig&&sig===S.lastSig?'без изменений с прошлой сводки (точка, объекты и метки те же)':area()));
   return {txt:o.join('\n\n'),sig};
 }
 async function doCopy(full){
