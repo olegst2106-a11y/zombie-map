@@ -48,7 +48,7 @@ details{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;padding
   <input id="q" placeholder="Найти место: город, улица, адрес" enterkeyhint="search">
   <button id="go">Найти</button>
 </div>
-<div id="mode"><button id="m2" class="on">Оба вместе</button><button id="m0">Игрок 1</button><button id="m1">Игрок 2</button><button id="mkb">Метка</button><select id="mt"></select></div>
+<div id="mode"><button id="m2" class="on">Оба вместе</button><button id="m0">Игрок 1</button><button id="m1">Игрок 2</button><button id="mkb">Метка</button><select id="mt"></select><button id="mh">Карта ▲</button></div>
 <div id="map"></div>
 <div id="panel">
   <div id="tabs"><button id="t0" class="on">Сводка</button><button id="t1">Герои</button><button id="t2">Мир</button></div>
@@ -56,12 +56,10 @@ details{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;padding
     <pre id="out" class="hint">Нажми на карту, чтобы поставить героев. Сводка появится здесь.</pre>
     <div class="g"><select id="df"><option value="80">Лёгкое</option><option value="55" selected>Обычное</option><option value="30">Трудное</option><option value="10">Почти невозможное</option></select><input id="md" type="number" value="0" step="5" aria-label="Сдвиг шанса, пункты"></div>
     <button id="dice" style="width:100%;margin-bottom:8px">Бросок d100</button>
-    <pre id="rl" class="hint">Броска ещё не было.</pre>
-    <textarea id="a0" class="act" placeholder="Действие игрока 1"></textarea>
-    <textarea id="a1" class="act" placeholder="Действие игрока 2"></textarea>
+    <pre id="rl" class="hint">Бросок копируется в буфер, когда рассказчик просит.</pre>
   </section>
   <section id="p1" hidden>
-    <div id="clock"><b id="clk"></b><button data-m="10">+10 мин</button><button data-m="60">+1 ч</button><button data-m="360">+6 ч</button><input id="tp" placeholder="Погода, t°" style="width:110px"><select id="act"></select></div>
+    <div id="clock"><b id="clk"></b><button data-m="10">+10 мин</button><button data-m="60">+1 ч</button><button data-m="360">+6 ч</button><input id="ta" type="number" placeholder="Воздух °C" style="width:90px"><select id="wx"><option value="0">сухо</option><option value="1">ветер</option><option value="2">дождь</option></select><input id="tp" placeholder="Заметка о погоде" style="width:120px"><select id="act"></select></div>
     <div id="hs"></div>
   </section>
   <section id="p2" hidden><div id="wd"></div></section>
@@ -205,10 +203,17 @@ const SNAP=45,EFF={'обыскано':'обыскан','добыча':'есть 
 const LIC=['M','A','B','C','D','E','тракторист'],VM=[['A','вит. A'],['B','вит. B'],['C','вит. C'],['D','вит. D'],['E','вит. E'],['Fe','железо'],['Ca','кальций'],['El','электролиты']],VR=[.6,2,3.3,.8,.5,.5,.25,12];
 const VT={'Велосипед':[0,0,15,25,1,'—',0],'Самокат':[0,0,12,5,1,'—',0],'Ролики':[0,0,12,0,1,'—',0],'Скутер':[3,6,35,20,2,'M',1],'Мотоцикл':[5,15,40,40,2,'A',1],'Квадроцикл':[7,15,30,50,2,'A/тракторист',1],'Легковая':[8,50,30,400,5,'B',0],'Внедорожник':[12,70,30,500,5,'B',0],'Пикап':[11,70,30,900,5,'B',0],'Микроавтобус':[11,70,28,1000,8,'B/D',1],'Лёгкий фургон':[12,80,28,1000,3,'B',1],'Грузовик':[25,100,25,5000,3,'C',1],'Тягач с прицепом':[35,300,22,20000,2,'C/E',1],'Автобус':[30,200,22,2000,40,'D',1],'Трактор':[15,200,12,1000,2,'тракторист',1]};
 const ZN=['голова','грудь','живот','л.рука','п.рука','л.нога','п.нога'],ZS=['','ушиб/ссадина','тяжёлая рана','перелом'],ZC=['#44545a','#d8b34a','#c2402f','#9a6ad0'];
-const EQ=['голова','торс','ноги','обувь','спина','руки'],ND=[['h','Голод','#d8a34a'],['t','Жажда','#4aa3d8'],['f','Усталость','#9a8ad0'],['s','Стресс','#d85a4a'],['pn','Боль','#e0604a'],['bl','Кровопотеря','#b03030'],['if','Инфекция','#7ab030']];
+const EQ=['голова','торс','ноги','обувь','спина','руки'],ND=[['h','Голод','#d8a34a'],['t','Жажда','#4aa3d8'],['f','Усталость','#9a8ad0'],['s','Стресс','#d85a4a'],['pn','Боль','#e0604a'],['bl','Кровопотеря','#b03030'],['if','Инфекция','#7ab030'],['po','Отравление','#a0b030']];
+const CLO=[[/пухов|зимн\S* куртк|шуб/i,18],[/куртк|пальто|плащ|парк/i,8],[/ветровк/i,5],[/свитер|толстовк|худи|флис|кофт/i,7],[/рубашк|футболк|майк/i,3],[/термобел/i,8],[/утеплённ|утеплен|зимн\S* (брюк|штан)/i,8],[/джинс|брюк|штан|спорт/i,5],[/шорт/i,1],[/зимн\S* (ботинк|сапог|обув)|унт|валенк/i,6],[/ботинк|сапог/i,4],[/кроссов|кед|туфл|сандал/i,3],[/шапк|кепк|капюшон|балаклав/i,3],[/перчат|варежк/i,3],[/шарф|бафф/i,2],[/носк/i,1],[/рюкзак|сумк/i,0]];
+const WXA=[0,-5,-8],DR=[['Вода чистая',0,0],['Вода кипячёная',0,0],['Вода сырая',0,1.2],['Пиво 5%',5,0],['Вино 12%',12,0],['Водка 40%',40,0],['Самогон 45%',45,0]];
+function warm(x){let t=0;x.eq.forEach(sl=>String(sl).split(/[,+;]| и /).forEach(it=>{it=it.trim();if(!it)return;const m=CLO.filter(c=>c[0].test(it)).map(c=>c[1]);t+=m.length?Math.max(...m):3}));return Math.min(t,45)}
+const feel=x=>(+S.ta||0)+warm(x)*.55+(ACT[S.act][1]-1.2)*1.5+WXA[S.wx];
+function thl(f){const t=Math.max(0,Math.min(10,5+(f-21)/4));return t<=1?'опасный холод':t<=2.5?'мёрзнет':t<=3.8?'холодно':t<=4.6?'прохладно':t<=5.6?'комфортно':t<=6.6?'тепло':t<=7.8?'жарко':t<=9?'очень жарко':'перегрев'}
+const alb=a=>a<.3?'трезв':a<1?'лёгкое':a<2?'пьян':a<3?'сильно пьян':'опасно';
+const wmsg=i=>{const x=S.h[i],f=feel(x);return `Одежда даёт +${warm(x)}, ощущается как ${Math.round(f)} °C: ${thl(f)}. Тело ${(+x.tb).toFixed(1)} °C. Опьянение ${x.al.toFixed(2)}‰ (${alb(x.al)}).`};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const hero=()=>({n:'',kg:70,cap:'',hp:'',inv:'',lic:'',h:0,t:0,f:0,s:0,pn:0,bl:0,if:0,tb:36.6,sk:0,sp:0,sf:0,sc:0,dk:0,dp:0,df:0,dc:0,bk:0,hg:0,wc:0,mn:[80,80,80,80,80,80,80,80],z:[0,0,0,0,0,0,0],eq:['','','','','','']});
-const dflt=()=>({sel:0,op:{s:1},act:0,day:1,min:480,tp:'',roll:'',ph:100,sun:0,pos:[null,null],rep:['',''],marks:[],comp:[],veh:[],h:[hero(),hero()]});
+const hero=()=>({n:'',kg:70,cap:'',hp:'',inv:'',lic:'',h:0,t:0,f:0,s:0,pn:0,bl:0,if:0,tb:36.6,al:0,po:0,sk:0,sp:0,sf:0,sc:0,dk:0,dp:0,df:0,dc:0,bk:0,hg:0,wc:0,mn:[80,80,80,80,80,80,80,80],z:[0,0,0,0,0,0,0],eq:['','','','','','']});
+const dflt=()=>({ta:15,wx:0,mh:false,sel:0,op:{s:1},act:0,day:1,min:480,tp:'',roll:'',ph:100,sun:0,pos:[null,null],rep:['',''],marks:[],comp:[],veh:[],h:[hero(),hero()]});
 let S;try{S=JSON.parse(localStorage.getItem(LK))}catch(e){}
 S=Object.assign(dflt(),S||{});S.h=S.h.map(x=>Object.assign(hero(),x));
 const save=()=>{S.pos=pos;S.rep=rep;try{localStorage.setItem(LK,JSON.stringify(S))}catch(e){}};
@@ -231,22 +236,23 @@ function doll(i){const x=S.h[i];
 const det=(k,t,h)=>`<details ${S.op[k]?'open':''} ontoggle="S.op['${k}']=this.open;save()"><summary>${t}</summary>${h}</details>`;
 const sbar=(i,k,l,c)=>`<div><label>${l} 0-10</label><input data-i="${i}" data-k="${k}" type="number" min="0" max="10" step="0.5" value="${Math.round((+S.h[i][k]||0)*2)/2}"><div class="bar"><i id="b${i}${k}" style="width:${Math.min(10,+S.h[i][k]||0)*10}%;background:${c}"></i></div></div>`;
 const bar=(l,p,c)=>`<label>${l}</label><div class="bar"><i style="width:${Math.max(0,Math.min(100,p))}%;background:${c}"></i></div>`;
-function eat(x,kc,p,f,c,vec,sc){x.sk+=kc;x.sp+=p;x.sf+=f;x.sc+=c;x.h=Math.max(0,x.h-kc/150);if(vec)x.mn=x.mn.map((v,k)=>Math.min(100,v+vec[k]*sc))}
+function eat(x,kc,p,f,c,vec,sc){if(x.hg>=6&&kc>0)x.po=Math.min(10,x.po+.6);x.sk+=kc;x.sp+=p;x.sf+=f;x.sc+=c;x.h=Math.max(0,x.h-kc/150);if(vec)x.mn=x.mn.map((v,k)=>Math.min(100,v+vec[k]*sc))}
 function bodyHTML(i){const x=S.h[i],kg=+x.kg||70,tp=kg,tf=kg*.8,tc=kg*3.5,r=Math.round;
   return `<div class="w">Сегодня усвоено ${r(x.dk)} ккал, потрачено ${r(x.bk)}.</div>`+
   bar(`Белки ${r(x.dp)} из ~${r(tp)} г`,x.dp/tp*100,'#d8a34a')+bar(`Жиры ${r(x.df)} из ~${r(tf)} г`,x.df/tf*100,'#d8d34a')+bar(`Углеводы ${r(x.dc)} из ~${r(tc)} г`,x.dc/tc*100,'#4ad8a3')+bar(`Желудок ${r(x.sk)} ккал (предел ~1500)`,x.sk/15,'#9a8ad0')+
-  VM.map((v,k)=>bar(`${v[1]} ${r(x.mn[k])}%`,x.mn[k],x.mn[k]<30?'#d8584a':'#6ad84a')).join('')+bar(`Грязь ${x.hg.toFixed(1)} из 10`,x.hg*10,'#8a6a4a')+bar(`Туалет ${x.wc.toFixed(1)} из 10`,x.wc*10,'#4aa3d8')+
+  VM.map((v,k)=>bar(`${v[1]} ${r(x.mn[k])}%`,x.mn[k],x.mn[k]<30?'#d8584a':'#6ad84a')).join('')+bar(`Грязь ${x.hg.toFixed(1)} из 10 (растёт от нагрузки и дождя, с 6 опасна при еде и ранах)`,x.hg*10,'#8a6a4a')+bar(`Туалет ${x.wc.toFixed(1)} из 10`,x.wc*10,'#4aa3d8')+
   `<div class="g" style="margin-top:6px"><select data-b="fd">${FOODS.map((f,k)=>`<option value="${k}">${f[0]}</option>`).join('')}</select><input data-b="g" type="number" placeholder="Граммы" value="100"></div>
-<div class="g"><button data-a="eat" data-i="${i}">Съесть</button><button data-a="wash" data-i="${i}">Помыться</button><input data-b="ml" type="number" placeholder="Вода, мл" value="500"><button data-a="drink" data-i="${i}">Выпить</button></div>
+<div class="g"><button data-a="eat" data-i="${i}">Съесть</button><button data-a="wash" data-i="${i}">Помыться</button></div>
+<div class="g"><select data-b="dk">${DR.map((d,k)=>`<option value="${k}">${d[0]}</option>`).join('')}</select><input data-b="ml" type="number" placeholder="Объём, мл" value="500"></div><button data-a="drink" data-i="${i}" style="width:100%;margin-bottom:6px">Выпить</button>
 <div class="g" style="grid-template-columns:1fr 1fr 1fr"><button data-a="pill" data-i="${i}">Мультивитамин</button><button data-a="salt" data-i="${i}">Электролиты</button><button data-a="wc" data-i="${i}">В туалет</button></div>
 <label>Своё блюдо на порцию: ккал, Б, Ж, У</label><div class="g" style="grid-template-columns:repeat(4,1fr)"><input data-b="k" type="number" placeholder="ккал"><input data-b="p" type="number" placeholder="Б"><input data-b="fa" type="number" placeholder="Ж"><input data-b="c" type="number" placeholder="У"></div><button data-a="own" data-i="${i}" style="width:100%">Съесть своё</button>`}
 function render(){
-  $('clk').textContent=clk();$('tp').value=S.tp;
+  $('clk').textContent=clk();$('tp').value=S.tp;topNames();
   const i=S.sel,x=S.h[i];
   $('hs').innerHTML=`<div class="g">${[0,1].map(j=>`<button data-sel="${j}" class="${j==i?'on':''}" style="color:${COL[j]}">● ${esc(S.h[j].n||'Игрок '+(j+1))}</button>`).join('')}</div>
 <div class="hero"><div class="g"><input data-i="${i}" data-k="n" placeholder="Имя" value="${esc(x.n)}"><input data-i="${i}" data-k="kg" type="number" step="0.1" placeholder="Вес, кг (считается сам)" value="${Math.round((+x.kg||0)*10)/10}"></div>
 <div class="g"><input data-i="${i}" data-k="cap" type="number" step="0.5" placeholder="Порог ноши, кг (пусто = 20%)" value="${x.cap}"><input data-i="${i}" data-k="hp" placeholder="Здоровье, заметки" value="${esc(x.hp)}"></div><div class="w" id="w${i}"></div></div>`+
-  det('s','Состояние и раны',`<div class="dl">${doll(i)}<div>${EQ.map((l,k)=>`<input data-i="${i}" data-e="${k}" placeholder="Надето: ${l}" value="${esc(x.eq[k])}">`).join('')}</div></div><label>Тап по зоне тела: ушиб, тяжёлая рана, перелом, норма</label><div class="g">${ND.map(([k,l,c])=>sbar(i,k,l,c)).join('')}<div><label>Температура тела, °C</label><input data-i="${i}" data-k="tb" type="number" step="0.1" value="${x.tb}"></div></div>`)+
+  det('s','Состояние и раны',`<div class="dl">${doll(i)}<div>${EQ.map((l,k)=>`<input data-i="${i}" data-e="${k}" placeholder="Надето: ${l}" value="${esc(x.eq[k])}">`).join('')}</div></div><label>Тап по зоне тела: ушиб, тяжёлая рана, перелом, норма</label><div class="w" id="wm${i}">${wmsg(i)}</div><div class="g">${ND.map(([k,l,c])=>sbar(i,k,l,c)).join('')}<div><label>Температура тела, °C</label><input data-i="${i}" data-k="tb" type="number" step="0.1" value="${x.tb}"></div></div>`)+
   det('n','Питание и тело',bodyHTML(i))+
   det('v','Вещи',`<label>Предмет и вес в кг, по строке (×3 для количества)</label><textarea data-i="${i}" data-k="inv" placeholder="Топор 1.5">${esc(x.inv)}</textarea>`)+
   det('d','Документы: водительские права',`<div class="g" style="grid-template-columns:repeat(4,1fr)">${LIC.map(t=>`<button class="chip ${(x.lic||'').split(' ').includes(t)?'on':''}" data-lic="${t}" data-i="${i}">${t}</button>`).join('')}</div>`);
@@ -254,8 +260,8 @@ function render(){
 }
 $('hs').addEventListener('input',e=>{
   const d=e.target.dataset;if(d.i===undefined)return;const x=S.h[d.i],v=e.target.value;
-  if(d.e!==undefined)x.eq[d.e]=v;
-  else if(d.k){x[d.k]=['kg','cap','h','t','f','s','pn','bl','if','tb'].includes(d.k)?(v===''?'':+v):v;wline(d.i);ND.forEach(([k])=>{$('b'+d.i+k).style.width=Math.min(10,+x[k]||0)*10+'%'})}
+  if(d.e!==undefined){x.eq[d.e]=v;$('wm'+d.i).textContent=wmsg(d.i)}
+  else if(d.k){x[d.k]=['kg','cap','h','t','f','s','pn','bl','if','tb','po'].includes(d.k)?(v===''?'':+v):v;if(d.k==='n')topNames();wline(d.i);ND.forEach(([k])=>{$('b'+d.i+k).style.width=Math.min(10,+x[k]||0)*10+'%'})}
   save();
 });
 $('hs').addEventListener('click',e=>{
@@ -267,7 +273,7 @@ $('hs').addEventListener('click',e=>{
   const a=d.a;
   if(a==='eat'){const f=FOODS[q('fd')],g=q('g')/100;eat(x,f[1]*g,f[2]*g,f[3]*g,f[4]*g,f[5],g)}
   else if(a==='own')eat(x,q('k'),q('p'),q('fa'),q('c'),null,0);
-  else if(a==='drink'){const ml=q('ml');x.t=Math.max(0,x.t-ml/150);x.wc=Math.min(10,x.wc+ml/400)}
+  else if(a==='drink'){const ml=q('ml'),d=DR[q('dk')],g=ml*d[1]/100*.8;x.t=Math.max(0,x.t-ml/150*(d[1]>=30?.3:1));x.wc=Math.min(10,x.wc+ml/400);x.al+=g/((+x.kg||70)*.6);x.sk+=7*g;x.po=Math.min(10,x.po+d[2]*ml/500)}
   else if(a==='pill')x.mn=x.mn.map((v,k)=>k<7?Math.min(100,v+30):v);
   else if(a==='salt')x.mn[7]=Math.min(100,x.mn[7]+40);
   else if(a==='wash')x.hg=Math.max(0,x.hg-6);else if(a==='wc')x.wc=0;else return;
@@ -277,14 +283,19 @@ function adv(m){
   const a=ACT[S.act],c=v=>Math.max(0,Math.min(10,v));let nd=false;
   S.min+=m;while(S.min>=1440){S.min-=1440;S.day++;nd=true}
   S.h.forEach(x=>{
-    const bn=a[1]*(+x.kg||70)*m/60,dg=Math.min(x.sk,150*m/60),fr=x.sk?dg/x.sk:0;
+    const f=feel(x),bn=a[1]*(+x.kg||70)*m/60*(f<10?1+(10-f)*.02:1),dg=Math.min(x.sk,150*m/60),fr=x.sk?dg/x.sk:0;
     x.bk+=bn;x.dk+=dg;x.dp+=x.sp*fr;x.df+=x.sf*fr;x.dc+=x.sc*fr;
     x.sp-=x.sp*fr;x.sf-=x.sf*fr;x.sc-=x.sc*fr;x.sk-=dg;
     x.kg=Math.max(30,(+x.kg||70)+(dg-bn)/7700);
     x.h=c(x.h+RATE.h*m/60*(x.sk>100?.3:1)*(S.act==4?.5:1));
-    x.t=c(x.t+RATE.t*m/60*(a[1]>3?1.5:1));
+    x.t=c(x.t+RATE.t*m/60*(a[1]>3?1.5:1)*(f>28?1+(f-28)*.06:1));
     x.f=c(x.f+a[2]*m/60);
-    x.mn=x.mn.map((v,k)=>Math.max(0,v-VR[k]*m/1440));if(x.z.some(v=>v>0)&&x.hg>=6)x.if=c(x.if+.1*m/60);x.hg=c(x.hg+.15*m/60);x.wc=c(x.wc+.3*m/60);
+    x.mn=x.mn.map((v,k)=>Math.max(0,v-VR[k]*m/1440));
+    if(x.z.some(v=>v>0)&&x.hg>=6)x.if=c(x.if+.1*m/60);
+    x.hg=c(x.hg+.15*m/60*(.5+a[1]/3)*(S.wx==2?1.5:1));x.wc=c(x.wc+.3*m/60);
+    x.al=Math.max(0,x.al-.15*m/60);x.po=c(x.po-.2*m/60);
+    const tg=f<8?36.6-(8-f)*.12:f>32?36.6+(f-32)*.1:36.6;
+    x.tb=Math.max(30,Math.min(42,(+x.tb||36.6)+(tg-x.tb)*(1-Math.exp(-m/180))));
     if(nd){x.dk=x.dp=x.df=x.dc=x.bk=0}
   });
   S.ph=Math.max(0,Math.min(100,S.ph-.5*m/60+(['рассвет','день'].includes(lt())?SUN[S.sun]*m/60:0)));
@@ -292,13 +303,14 @@ function adv(m){
 }
 document.querySelectorAll('#clock [data-m]').forEach(b=>b.onclick=()=>adv(+b.dataset.m));
 $('tp').oninput=e=>{S.tp=e.target.value;save()};
+$('ta').value=S.ta;$('ta').oninput=e=>{S.ta=e.target.value===''?'':+e.target.value;save()};$('wx').value=S.wx;$('wx').onchange=e=>{S.wx=+e.target.value;render();save()};
 $('act').innerHTML=ACT.map((a,i)=>`<option value="${i}">${a[0]}</option>`).join('');$('act').value=S.act;$('act').onchange=e=>{S.act=+e.target.value;save()};
 [0,1,2].forEach(i=>$('t'+i).onclick=()=>[0,1,2].forEach(j=>{$('p'+j).hidden=j!==i;$('t'+j).classList.toggle('on',j===i)}));
 
 function renderWorld(){
   $('wd').innerHTML=`<div class="hero"><b>КПК</b><div class="g"><div><label>Заряд, %</label><input data-g="p" type="number" min="0" max="100" value="${Math.round(S.ph)}"></div><div><label>Солнце на панели</label><select data-g="sun">${['нет','пасмурно','ясно'].map((x,i)=>`<option value="${i}"${i==S.sun?' selected':''}>${x}</option>`).join('')}</select></div></div><button data-a="ai" style="width:100%">Запрос помощнику (−2%)</button></div>
 <div class="hero"><b>Спутники</b>${S.comp.map((c,i)=>`<div class="g"><input data-g="c" data-i="${i}" data-k="n" placeholder="Имя" value="${esc(c.n)}"><input data-g="c" data-i="${i}" data-k="k" placeholder="Кто (кошка, человек)" value="${esc(c.k)}"><input data-g="c" data-i="${i}" data-k="s" placeholder="Состояние" value="${esc(c.s)}"><button data-a="dc" data-i="${i}">Убрать</button></div>`).join('')}<button data-a="ac" style="width:100%">+ Спутник</button></div>
-<div class="hero"><b>Транспорт</b>${S.veh.map((v,i)=>`<div class="g"><select data-g="v" data-i="${i}" data-k="t">${Object.keys(VT).map(k=>`<option${k==v.t?' selected':''}>${k}</option>`).join('')}</select><input data-g="v" data-i="${i}" data-k="n" placeholder="Название, состояние" value="${esc(v.n)}"><input data-g="v" data-i="${i}" data-k="f" type="number" placeholder="Топливо, л" value="${v.f}"><button data-a="dv" data-i="${i}">Убрать</button><button data-a="dr" data-i="${i}" style="grid-column:1/3">Проехать N км</button><div class="w" style="grid-column:1/3">${vinfo(v)}</div></div>`).join('')}<button data-a="av" style="width:100%">+ Транспорт</button></div>
+<div class="hero"><b>Транспорт</b>${S.veh.map((v,i)=>{const r=VT[v.t];return `<div class="hero"><div class="g"><select data-g="v" data-i="${i}" data-k="t">${Object.keys(VT).map(k=>`<option${k==v.t?' selected':''}>${k}</option>`).join('')}</select><input data-g="v" data-i="${i}" data-k="n" placeholder="Название, состояние" value="${esc(v.n)}"></div>${r[1]?`<label>Топливо в баке, л (бак ${r[1]} л)</label><input data-g="v" data-i="${i}" data-k="f" type="number" min="0" max="${r[1]}" step="0.5" value="${v.f}" style="width:100%"><div class="bar"><i style="width:${Math.min(100,v.f/r[1]*100)}%;background:#d8a34a"></i></div>`:'<div class="w">Без топлива: едет на мускульной силе</div>'}<div class="w">${vinfo(v)}</div><div class="g"><button data-a="dr" data-i="${i}">Проехать N км</button><button data-a="dv" data-i="${i}">Убрать</button></div>${r[1]?`<button data-a="fl" data-i="${i}" style="width:100%;margin-top:6px">Бак полный</button>`:''}</div>`}).join('')}<button data-a="av" style="width:100%">+ Транспорт</button></div>
 <div class="hero"><b>Метки от рассказчика</b><label>Строка: тип | игрок 1 или 2 | сторона | метры | подпись</label><textarea id="imp" placeholder="зомби | 1 | СВ | 150 | орда у ТЦ"></textarea><button data-a="im" style="width:100%">Поставить метки</button></div>`;
 }
 $('wd').addEventListener('input',e=>{
@@ -312,14 +324,15 @@ $('wd').addEventListener('click',e=>{
   if(a==='ai')S.ph=Math.max(0,S.ph-2);
   else if(a==='ac')S.comp.push({n:'',k:'',s:''});else if(a==='dc')S.comp.splice(i,1);
   else if(a==='av')S.veh.push({t:'Велосипед',n:'',f:0});else if(a==='dv')S.veh.splice(i,1);
+  else if(a==='fl')S.veh[i].f=VT[S.veh[i].t][1];
   else if(a==='dr'){drive(i);return}
   else if(a==='im')impMarks($('imp').value);
   save();renderWorld();
 });
 function vinfo(v){const r=VT[v.t],need=r[5]==='—'?[]:r[5].split('/'),lic=i=>need.some(t=>(S.h[i].lic||'').split(' ').includes(t));
-  return `кат. ${r[5]}, ${r[6]?'сложная':'простая'} техника, груз ${r[3]} кг, мест ${r[4]}, ${r[2]} км/ч`+(need.length?`; права: И1 ${lic(0)?'есть':'нет'}, И2 ${lic(1)?'есть':'нет'}`:'')}
+  return `кат. ${r[5]}, ${r[6]?'сложная':'простая'} техника, груз ${r[3]} кг, мест ${r[4]}, ${r[2]} км/ч`+(r[0]?`; запас хода ~${Math.round(v.f/r[0]*100)} км, в завалах вдвое меньше`:'')+(need.length?`; права: И1 ${lic(0)?'есть':'нет'}, И2 ${lic(1)?'есть':'нет'}`:'')}
 function drive(i){
-  const v=S.veh[i],r=VT[v.t],km=parseFloat((prompt('Сколько км?','')||'').replace(',','.'));
+  const v=S.veh[i],r=VT[v.t],km=parseFloat((prompt('Сколько км? Запас хода ~'+(r[0]?Math.round(v.f/r[0]*100)+' км':'без ограничения'),'')||'').replace(',','.'));
   if(!(km>0))return;
   if(r[0]){
     const need=km*r[0]/100*(confirm('Завалы или город (расход ×2)? ОК = да')?2:1);
@@ -347,6 +360,9 @@ function onMap(la,lo){
   if(mkMode){const n=prompt('Подпись метки (можно пусто)','');if(n===null)return;addMark($('mt').value,la,lo,n.trim())}
   else scan(la,lo);
 }
+function topNames(){$('m0').textContent=S.h[0].n||'Игрок 1';$('m1').textContent=S.h[1].n||'Игрок 2'}
+function applyMap(){$('map').style.display=S.mh?'none':'';$('mh').textContent=S.mh?'Карта ▼':'Карта ▲';if(!S.mh)setTimeout(()=>map.invalidateSize(),50)}
+$('mh').onclick=()=>{S.mh=!S.mh;applyMap();save()};applyMap();
 $('mkb').onclick=()=>{mkMode=!mkMode;$('mkb').classList.toggle('on',mkMode);$('mkb').textContent=mkMode?'Метка: ВКЛ':'Метка'};
 $('mt').innerHTML=Object.keys(MT).map(k=>`<option value="${k}">${MT[k]} ${k}</option>`).join('');
 
@@ -354,21 +370,21 @@ $('dice').onclick=()=>{
   const d=1+Math.floor(Math.random()*100),b=+$('df').value,m=+$('md').value||0,th=Math.max(0,Math.min(95,b+m));
   const res=d<=th?(d<=5?'УСПЕХ с бонусом':'успех'):(d>=96?'ПРОВАЛ с осложнением':'промах');
   S.roll=`d100 = ${d}, порог ${th}% (${$('df').selectedOptions[0].text.toLowerCase()}${m?', сдвиг '+(m>0?'+':'')+m:''}): ${res}`;
-  $('rl').textContent=S.roll;$('rl').className='';save();
+  $('rl').textContent=S.roll+' (скопировано)';$('rl').className='';try{navigator.clipboard.writeText(S.roll)}catch(e){}save();
 };
 
 $('copy').onclick=async()=>{
   const n=(x,k)=>Math.round((+x[k]||0)*10)/10;
   const nut=x=>`питание за день: ${Math.round(x.dk)} ккал (Б ${Math.round(x.dp)}, Ж ${Math.round(x.df)}, У ${Math.round(x.dc)}), потрачено ${Math.round(x.bk)}; желудок ${Math.round(x.sk)} ккал; запасы %: ${VM.map((v,k)=>v[0]+' '+Math.round(x.mn[k])).join(', ')}; грязь ${n(x,'hg')}/10; туалет ${n(x,'wc')}/10`;
   const hv=(x,i)=>{const r=st(x),z=ZN.map((a,k)=>x.z[k]?`${a}: ${ZS[x.z[k]]}`:'').filter(Boolean).join(', '),eq=EQ.map((l,k)=>x.eq[k]?`${l} ${x.eq[k]}`:'').filter(Boolean).join(', ');
-    return `ИГРОК ${i+1}: ${x.n||'без имени'}; вес тела ${(+x.kg).toFixed(1)} кг; активность: ${ACT[S.act][0]}; раны: ${[x.hp,z].filter(Boolean).join('; ')||'нет'}; голод ${n(x,'h')}/10, жажда ${n(x,'t')}/10, усталость ${n(x,'f')}/10, стресс ${n(x,'s')}/10, боль ${n(x,'pn')}/10, кровопотеря ${n(x,'bl')}/10, инфекция ${n(x,'if')}/10, температура тела ${x.tb}; ноша ${r.w.toFixed(1)} из ${r.c.toFixed(1)} кг (${r.s}); надето: ${eq||'-'}; вещи: ${names(x)||'пусто'}; ${nut(x)}`};
-  const o=[`ВРЕМЯ: ${clk()}${S.tp?', '+S.tp:''}`,...S.h.map(hv),`КПК: заряд ${Math.round(S.ph)}%`];
+    return `ИГРОК ${i+1}: ${x.n||'без имени'}; вес тела ${(+x.kg).toFixed(1)} кг; активность: ${ACT[S.act][0]}; раны: ${[x.hp,z].filter(Boolean).join('; ')||'нет'}; голод ${n(x,'h')}/10, жажда ${n(x,'t')}/10, усталость ${n(x,'f')}/10, стресс ${n(x,'s')}/10, боль ${n(x,'pn')}/10, кровопотеря ${n(x,'bl')}/10, инфекция ${n(x,'if')}/10, отравление ${n(x,'po')}/10, температура тела ${(+x.tb).toFixed(1)}, одежда +${warm(x)} (ощущается как ${Math.round(feel(x))} °C, ${thl(feel(x))}), опьянение ${x.al.toFixed(2)}‰ (${alb(x.al)}); ноша ${r.w.toFixed(1)} из ${r.c.toFixed(1)} кг (${r.s}); надето: ${eq||'-'}; вещи: ${names(x)||'пусто'}; ${nut(x)}`};
+  const o=[`ВРЕМЯ: ${clk()}, воздух ${S.ta}°C${S.wx?', '+['','ветер','дождь'][S.wx]:''}${S.tp?', '+S.tp:''}`,...S.h.map(hv),`КПК: заряд ${Math.round(S.ph)}%`];
   if(S.comp.length)o.push('СПУТНИКИ: '+S.comp.map(c=>`${c.n||'?'} (${c.k||'-'}): ${c.s||'-'}`).join('; '));
   if(S.veh.length)o.push('ТРАНСПОРТ: '+S.veh.map(v=>`${v.t} (кат. ${VT[v.t][5]})${v.n?' '+v.n:''}${VT[v.t][0]?', топливо '+v.f+' из '+VT[v.t][1]+' л':''}`).join('; '));
-  o.push('МЕСТНОСТЬ:\n'+area(),'БРОСОК: '+(S.roll||'нет'),`ДЕЙСТВИЯ:\nИгрок 1: ${$('a0').value.trim()||'-'}\nИгрок 2: ${$('a1').value.trim()||'-'}`);
+  o.push('МЕСТНОСТЬ:\n'+area());
   try{await navigator.clipboard.writeText(o.join('\n\n'));$('copy').textContent='Скопировано'}
   catch(e){$('copy').textContent='Не вышло, обнови страницу'}
-  S.roll='';$('rl').textContent='Броска ещё не было.';$('rl').className='hint';save();
+  save();
   setTimeout(()=>$('copy').textContent='Копировать для рассказчика',2500);
 };
 render();renderWorld();
